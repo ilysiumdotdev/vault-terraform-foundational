@@ -11,3 +11,17 @@ locals {
         v.name => v
     }
 }
+
+locals {
+    vault_paths = {
+        auth_backends = {
+            github     = vault_jwt_auth_backend.github.path
+            kubernetes = vault_auth_backend.kubernetes.path
+        }
+        secrets_engines = {
+            kubernetes = vault_kubernetes_secret_backend.kubernetes.path
+            kv         = vault_mount.kv_v2.path
+            pki        = vault_mount.pki.path
+        }
+    }
+}

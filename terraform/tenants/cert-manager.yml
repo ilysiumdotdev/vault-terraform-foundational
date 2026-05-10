@@ -1,0 +1,15 @@
+name: cert-manager
+secrets_engines:
+  pki:
+    path: pki
+auth_backends:
+  kubernetes:
+    cert-manager:
+      role_name: cert-manager
+      bound_service_account_names: ["cert-manager"]
+      bound_service_account_namespaces: ["cert-manager"]
+      token_policy_keys: ["pki-issue"]
+policies:
+  pki-issue:
+    name: cert-manager-pki-issue
+    template: pki-issue

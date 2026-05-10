@@ -1,56 +1,62 @@
-resource "vault_policy" "kubernetes_auth" {
-    count = local.kubernetes_auth_enabled ? 1 : 0
+resource "vault_policy" "policies" {
+    for_each = local.policies
 
-    name   = local.kubernetes_auth_policy_name
-    policy = local.kubernetes_auth_policy
+    name   = each.value.name
+    policy = each.value.policy
+}
+resource "vault_kubernetes_secret_backend_role" "kubernetes_secrets" {
+    count = var.secrets_engines.kubernetes != null ? 1 : 0
+
+    backend = var.vault_paths.secrets_engines.kubernetes
+    
+    name                                  = var.secrets_engines.kubernetes.name
+    name_template                         = var.secrets_engines.kubernetes.name_template
+    kubernetes_role_name                  = var.secrets_engines.kubernetes.kubernetes_role_name
+    kubernetes_role_type                  = var.secrets_engines.kubernetes.kubernetes_role_type
+    generated_role_rules                  = var.secrets_engines.kubernetes.generated_role_rules
+    allowed_kubernetes_namespaces         = var.secrets_engines.kubernetes.allowed_kubernetes_namespaces
+    allowed_kubernetes_namespace_selector = var.secrets_engines.kubernetes.allowed_kubernetes_namespace_selector
+    extra_annotations                     = var.secrets_engines.kubernetes.extra_annotations
+    extra_labels                          = var.secrets_engines.kubernetes.extra_labels
+    
+    token_default_ttl = var.secrets_engines.kubernetes.token_default_ttl
+    token_max_ttl     = var.secrets_engines.kubernetes.token_max_ttl
 }
 
-resource "vault_policy" "github_auth" {
-    count = local.github_auth_enabled ? 1 : 0
+resource "vault_jwt_auth_backend_role" "github_auth" {
+    for_each = var.auth_backends.github != null ? var.auth_backends.github : {}
 
-    name   = local.github_auth_policy_name
-    policy = local.github_auth_policy
-}
+    backend = var.vault_paths.auth_backends.github
 
-resource "vault_jwt_auth_backend_role" "this" {
-    count = local.github_auth_enabled ? 1 : 0
+    role_name    = each.value.role_name
+    role_type    = "jwt"
+    user_claim   = "actor"
+    bound_claims = merge({
+        repository = "${each.value.organization}/${each.value.repository}"
+    }, each.value.extra_bound_claims)
 
-    backend        = var.github_auth_backend_path
-    role_name      = var.name
-    token_policies = [ vault_policy.github_auth[0].name ]
-    token_ttl      = var.github_auth_backend.token_ttl
-    token_max_ttl  = var.github_auth_backend.token_max_ttl
-
-    role_type       = "jwt"
-    user_claim      = "actor"
-    bound_audiences = ["https://github.com/black-quartz"]
-    bound_claims    = var.github_auth_backend.bound_claims
-
+    token_policies = [
+        for key in each.value.token_policy_keys :
+        vault_policy.policies[key].name
+    ]
+    token_ttl     = each.value.token_ttl
+    token_max_ttl = each.value.token_max_ttl
 
 }
 
-resource "vault_kubernetes_auth_backend_role" "this" {
-    count = local.kubernetes_auth_enabled ? 1 : 0
+resource "vault_kubernetes_auth_backend_role" "kubernetes_auth" {
+    for_each = var.auth_backends.kubernetes
 
-    backend        = var.kubernetes_auth_backend_path
-    role_name      = var.name
-    token_policies = [ vault_policy.kubernetes_auth[0].name ]
-    token_ttl      = var.kubernetes_auth_backend.token_ttl
-    token_max_ttl  = var.kubernetes_auth_backend.token_max_ttl
+    backend = var.vault_paths.auth_backends.kubernetes
 
-    bound_service_account_names      = var.kubernetes_auth_backend.bound_service_account_names
-    bound_service_account_namespaces = var.kubernetes_auth_backend.bound_service_account_namespaces
-}
-
-resource "vault_kubernetes_secret_backend_role" "this" {
-    count = local.kubernetes_secrets_enabled ? 1 : 0
-
-    backend           = var.kubernetes_secrets_engine_path
-    name              = var.kubernetes_secrets_engine.name
-    token_default_ttl = var.kubernetes_secrets_engine.token_default_ttl
-    token_max_ttl     = var.kubernetes_secrets_engine.token_max_ttl 
-
-    kubernetes_role_name          = var.kubernetes_secrets_engine.kubernetes_role_name
-    kubernetes_role_type          = var.kubernetes_secrets_engine.kubernetes_role_type
-    allowed_kubernetes_namespaces = var.kubernetes_secrets_engine.allowed_kubernetes_namespaces
+    role_name                        = each.value.role_name
+    bound_service_account_names      = each.value.bound_service_account_names
+    bound_service_account_namespaces = each.value.bound_service_account_namespaces
+    
+    token_policies = [
+        for key in each.value.token_policy_keys :
+        vault_policy.policies[key].name
+    ]
+    token_max_ttl  = each.value.token_max_ttl
+    token_num_uses = each.value.token_num_uses
 }
