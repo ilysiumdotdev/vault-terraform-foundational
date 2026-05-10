@@ -1,12 +1,15 @@
 name: arc-runners
-
-auth_backends:
-  kubernetes:
-    bound_service_account_names:
-      - arc-runners-secret-store
-    bound_service_account_namespaces:
-      - arc-runners
-
 secrets_engines:
   kv:
     path: arc-runners
+auth_backends:
+  kubernetes:
+    arc-runners:
+      role_name: arc-runners
+      bound_service_account_names: ["arc-runners-secret-store"]
+      bound_service_account_namespaces: ["arc-runners"]
+      token_policy_keys: ["kv-read"]
+policies:
+  kv-read:
+    name: arc-runners-kv-read
+    template: kv-read
